@@ -1,28 +1,49 @@
-# Install all the packages if not.
+# INSTALAR LOS PAQUETES
 # install.packages("tm")  # for text mining
 # install.packages("SnowballC") # for text stemming
-# install.packages("wordcloud") # word-cloud generator 
+# install.packages("wordcloud") # word-cloud generator
 # install.packages("RColorBrewer") # color palettes
 # install.packages("syuzhet") # for sentiment analysis
 # install.packages("ggplot2") # for plotting graphs
 # install.packages("redux")
+# install.packages("biclust")
+# install.packages("igraph")
+# install.packages("fpc")
 
-library("tm")
 library("SnowballC")
-library("wordcloud")
+library("NLP")
+library("tm")
 library("RColorBrewer")
-library("syuzhet")
+library("wordcloud")
 library("ggplot2")
+library("syuzhet")
 library("redux")
+library("MASS")
+library("grid")
+library("colorspace")
+library("lattice")
+library("biclust")
+library("cluster")
+library("igraph")
+library("fpc")
 
-# Iniciar la conexión con el servidor Redis: 
+# Iniciar la conexión con el servidor Redis:
 r = redux::hiredis()
-# Los datos del archivo CSV están cargado en la llave kindle_review. Para acceder 
+# Los datos del archivo CSV están cargado en la llave kindle_review. Para acceder
 # a ellos se usa el método GET y se los puede guardar en una variable (por ejemplo csv):
-csv = r$GET("kindle_review") 
+csv = r$GET("kindle_review")
 # Con el paso anterior, la variable csv tendrá almacenado todo el contenido del archivo CSV
 # como una enorme cadena de texto. Este texto debe ser transformado en tabla para su utilización. Esta transformación se realiza con el siguiente comando:
-data <- read.csv(text=csv,sep=',') 
+data <- read.csv(text=csv,sep=',')
+
+palabras <- strsplit(data$reviewText, "\\s+")
+
+# Calcular la cantidad de palabras en cada texto utilizando length()
+contador <- sapply(palabras, length)
+
+# Calcular la cantidad total de palabras en el objeto data
+total_palabras <- sum(contador)
+
 # creando el corpus de texto
 TextDoc  <- Corpus(VectorSource(data$review))
 length(data)
@@ -46,21 +67,21 @@ TextDoc <- tm_map(TextDoc, removePunctuation)
 TextDoc <- tm_map(TextDoc, stripWhitespace)
 # Proceso de stemming sobre el corpus, se reduce las palabras a su raíz o base común.
 TextDoc <- tm_map(TextDoc, stemDocument)
-# Se construye una matriz término-documento utilizando la función TermDocumentMatrix() 
-# del paquete tm. La matriz término-documento es una representación matricial de los términos 
+# Se construye una matriz término-documento utilizando la función TermDocumentMatrix()
+# del paquete tm. La matriz término-documento es una representación matricial de los términos
 # (palabras) en los documentos del corpus.
 TextDoc_dtm <- TermDocumentMatrix(TextDoc)
-# Se convierte la matriz término-documento TextDoc_dtm en una matriz regular utilizando 
-# la función as.matrix(). Esto permite trabajar con la matriz de término-documento 
+# Se convierte la matriz término-documento TextDoc_dtm en una matriz regular utilizando
+# la función as.matrix(). Esto permite trabajar con la matriz de término-documento
 # como una matriz regular en R.
 dtm_m <- as.matrix(TextDoc_dtm)
-# Se calcula la suma de las frecuencias de términos por fila de la matriz término-documento (dtm_m) 
-# utilizando rowSums(). Luego, se ordenan los resultados en orden descendente utilizando 
+# Se calcula la suma de las frecuencias de términos por fila de la matriz término-documento (dtm_m)
+# utilizando rowSums(). Luego, se ordenan los resultados en orden descendente utilizando
 # la función sort(). Esto da como resultado un vector (dtm_v) que contiene
 # las sumas de frecuencias de términos ordenadas de manera descendente.
 dtm_v <- sort(rowSums(dtm_m),decreasing=TRUE)
-# Se crea un nuevo marco de datos (dtm_d) con dos columnas: "word" (palabra) y "freq" (frecuencia). 
-# La columna "word" contiene los nombres de los términos y la columna "freq" contiene 
+# Se crea un nuevo marco de datos (dtm_d) con dos columnas: "word" (palabra) y "freq" (frecuencia).
+# La columna "word" contiene los nombres de los términos y la columna "freq" contiene
 # las frecuencias de cada término.
 dtm_d <- data.frame(word = names(dtm_v),freq=dtm_v)
 # Mostrar las 5 palabras mas frecuentes
@@ -72,19 +93,19 @@ barplot(dtm_d[1:10,]$freq, las = 2, names.arg = dtm_d[1:10,]$word,
 x <- c(15696, 11329, 10921,6580,6019)
 labels <- c("book", "stori", "read","like","one")
 # Graficar torta
-pie(x, labels, main = "Grafico de torta para el Top 5 de Palabras más frecuentes", col = rainbow(length(x)))
+pie(x, labels, main = "Gráfico de torta para el Top 5 de Palabras más frecuentes", col = rainbow(length(x)))
 legend("topright", c("book","stori","read","like","one"), cex = 0.8,fill = rainbow(length(x)))
 # Generar una nube de palabras
 set.seed(1234)
 wordcloud(words = dtm_d$word, freq = dtm_d$freq, min.freq = 5,
-          max.words=100, random.order=FALSE, rot.per=0.40, 
+          max.words=100, random.order=FALSE, rot.per=0.40,
           colors=brewer.pal(8, "Dark2"))
-# Encontrar Asociaciones entre las palabras: La correlación se basa en la medida de similitud 
+# Encontrar Asociaciones entre las palabras: La correlación se basa en la medida de similitud
 # entre los términos en los documentos.
 findAssocs(TextDoc_dtm, terms = c("book","stori","read"), corlimit = 0.25)
-# En lugar de especificar las palabras se utilizan aquellas 
-# que al menos aparezcan 10 veces dentro de la matrix de terminos
-findAssocs(TextDoc_dtm, terms = findFreqTerms(TextDoc_dtm, lowfreq = 10), corlimit = 0.25)
+# En lugar de especificar las palabras se utilizan aquellas
+# que al menos aparezcan 5000 veces dentro de la matrix de terminos
+findAssocs(TextDoc_dtm, terms = findFreqTerms(TextDoc_dtm, lowfreq = 5000), corlimit = 0.25)
 # El comando calculará el sentimiento de los textos utilizando el método "syuzhet", que es un enfoque basado en léxico. El paquete "syuzhet" proporciona un conjunto de léxicos predefinidos que asignan puntuaciones de sentimiento a las palabras en los textos. Estas puntuaciones se utilizan para calcular un puntaje de sentimiento general para cada texto.
 # El resultado del comando será un vector llamado "syuzhet_vector" que contiene los puntajes de sentimiento calculados para cada texto en la columna "reviewText". Cada valor en el vector representa el sentimiento asociado con el texto correspondiente.
 # Es importante tener en cuenta que el cálculo del sentimiento es una tarea subjetiva y depende del léxico utilizado y del enfoque de análisis. El método "syuzhet" en particular se basa en un enfoque léxico y puede tener sus propias limitaciones y sesgos.
@@ -98,10 +119,10 @@ summary(syuzhet_vector)
 bing_vector <- get_sentiment(data$reviewText, method="bing")
 head(bing_vector)
 summary(bing_vector)
-# El método "afinn" se refiere a un léxico específico llamado "AFINN-111" que 
-# fue creado por Finn Årup Nielsen. Este léxico contiene un conjunto de palabras 
+# El método "afinn" se refiere a un léxico específico llamado "AFINN-111" que
+# fue creado por Finn Årup Nielsen. Este léxico contiene un conjunto de palabras
 # con puntuaciones de sentimiento preasignadas. Cada palabra en el léxico tiene un valor
-# numérico que indica su polaridad de sentimiento, donde los valores positivos 
+# numérico que indica su polaridad de sentimiento, donde los valores positivos
 # indican sentimiento positivo y los valores negativos indican sentimiento negativo.
 afinn_vector <- get_sentiment(data$reviewText, method="afinn")
 head(afinn_vector)
@@ -112,31 +133,38 @@ summary(afinn_vector)
 # rbind(): Es una función que combina vectores, matrices o data frames por filas. En este caso, se utiliza para combinar verticalmente los resultados de las tres llamadas a sign().
 # El resultado del comando será una matriz donde cada fila representa las primeras observaciones de los vectores syuzhet_vector, bing_vector y afinn_vector con sus respectivos signos (-1, 0 o 1). Cada columna de la matriz corresponderá a uno de los vectores.
 # La función sign() se utiliza en este caso para obtener una representación simplificada del sentimiento en cada vector, donde se considera si el sentimiento es negativo, positivo o neutral (0). La combinación vertical de los resultados de sign() proporciona una visión comparativa del signo del sentimiento según los diferentes enfoques o léxicos utilizados (syuzhet, bing y afinn).
-rbind(
-  sign(head(syuzhet_vector)),
-  sign(head(bing_vector)),
-  sign(head(afinn_vector))
+matrix_normalizada = rbind(
+  sign(syuzhet_vector),
+  sign(bing_vector),
+  sign(afinn_vector)
 )
- 
+
+promedio_total <- mean(matrix_normalizada, na.rm = TRUE)
+print(promedio_total)
+
 # la función get_nrc_sentiment() para calcular el sentimiento de los textos en la
-# columna "reviewText" de un objeto de datos llamado "data" utilizando el 
+# columna "reviewText" de un objeto de datos llamado "data" utilizando el
 # léxico NRC (National Research Council) Sentiment Lexicon.
 d<-get_nrc_sentiment(data$reviewText)
 head (d,10)
 #Transpuesta
-td<-data.frame(t(d)) 
-td_new <- data.frame(rowSums(td[2:253])) 
+td<-data.frame(t(d))
+td_new <- data.frame(rowSums(td[2:253]))
 names(td_new)[1] <- "count"
 td_new <- cbind("sentiment" = rownames(td_new), td_new)
 rownames(td_new) <- NULL
-td_new2<-td_new[1:8,] 
+td_new2<-td_new[1:8,]
 quickplot(sentiment, data=td_new2, weight=count, geom="bar", fill=sentiment, ylab="count")+ggtitle("Survey sentiments")
+barplot(
+  sort(colSums(prop.table(d[, 1:8]))),
+  horiz = TRUE,
+  cex.names = 0.7,
+  las = 1,
+  main = "Emociones en el texto", xlab="Porcentaje"
+)
 
-
-# Crear una matriz término-documento
-dtm <- DocumentTermMatrix(corpus) 
-# Eliminar términos poco frecuentes o dispersos
-dtm_sparse <- removeSparseTerms(dtm, 0.40) 
+# Eliminar términos poco frecuentes o dispersos. El parametro
+dtm_sparse <- removeSparseTerms(TextDoc_dtm,0.70 )
 # Ver los términos resultantes
 terms <- colnames(dtm_sparse)
 print(terms)
@@ -146,4 +174,8 @@ dist_matrix <- dist(dtm_sparse,method = "euclidean")  # Calcular la matriz de di
 hc <- hclust(dist_matrix, method = "complete")  # Realizar el agrupamiento jerárquico
 
 # Crear el dendrograma
-plot(hc, hang = -1)
+plot(hc, hang = -1,xlab="Términos",ylab="Distancia", main="Dendrograma")
+
+modelokm=kmeans(dist_matrix,2)
+clusplot(as.matrix(dist_matrix), modelokm$cluster, color=T, shade=T, labels=2, lines=2)
+ 
